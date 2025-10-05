@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>A World Away: Exoplanet Analysis Demo</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Moved Chart.js Annotation Plugin load here for guaranteed initialization -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.7.1/chart.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-annotation/1.4.0/chartjs-plugin-annotation.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0d1117; /* Dark space background */
+            color: #e5e7eb;
+        }
+        .card {
+            background-color: #161b22; /* Slightly lighter dark card */
+            border: 1px solid #30363d;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.5);
+        }
+        .nasa-gradient {
+            background: linear-gradient(90deg, #1c2e4a 0%, #161b22 100%);
+        }
+    </style>
+</head>
+<body class="p-4 md:p-8">
+    <div id="app" class="max-w-7xl mx-auto">
+        <!-- Header -->
+        <header class="nasa-gradient p-6 rounded-t-xl mb-8">
+            <h1 class="text-4xl font-extrabold text-blue-400 mb-2 tracking-tight">
+                A World Away: Exoplanet AI Demo
+            </h1>
+            <p class="text-gray-400 text-lg">Analyze Kepler Data: Upload FITS File for BLS Feature Extraction</p>
+        </header>
+
+        <!-- Main Content Area -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            
+            <!-- Left Panel: Input & Parameters -->
+            <div class="lg:col-span-1 card p-6 rounded-xl h-fit sticky top-8">
+                <h2 class="text-2xl font-semibold mb-4 text-blue-300">1. Data Upload & Analysis</h2>
+                
+                <!-- File Input (Simulating upload) -->
+                <div class="mb-6">
+                    <label for="fitsFile" class="block text-sm font-medium mb-2">Upload Kepler FITS File</label>
+                    <input type="file" id="fitsFile" accept=".fits" class="block w-full text-sm text-gray-400
+                        file:mr-4 file:py-2 file:px-4
+                        file:rounded-full file:border-0
+                        file:text-sm file:font-semibold
+                        file:bg-blue-900 file:text-blue-200
+                        hover:file:bg-blue-800 cursor-pointer
+                    ">
+                </div>
+
+                <!-- Analysis Button -->
+                <button id="analyzeButton" onclick="startAnalysis()" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-full transition duration-200 shadow-lg mb-6 disabled:opacity-50" disabled>
+                    Run Exoplanet BLS Analysis
+                </button>
+
+                <!-- Parameter Output -->
+                <div id="outputParameters" class="space-y-3 p-4 rounded-lg bg-gray-800/50 hidden">
+                    <h3 class="text-xl font-semibold text-green-300 border-b border-gray-700 pb-2">2. Extracted Features (BLS)</h3>
+                    <p class="text-sm">
+                        <span class="font-medium text-gray-400">Target ID:</span> <span id="paramKicId" class="font-bold text-lg text-blue-400">...</span>
+                    </p>
+                    <div class="text-sm">
+                        <span class="font-medium text-gray-400">Best Period:</span> <span id="paramPeriod" class="font-mono text-lg text-green-400">...</span> <span class="text-gray-500">days</span>
+                    </div>
+                    <div class="text-sm">
+                        <span class="font-medium text-gray-400">Transit Duration:</span> <span id="paramDuration" class="font-mono text-lg text-green-400">...</span> <span class="text-gray-500">hours</span>
+                    </div>
+                    <div class="text-sm">
+                        <span class="font-medium text-gray-400">Transit Time (T0):</span> <span id="paramT0" class="font-mono text-lg text-green-400">...</span> <span class="text-gray-500">BJD</span>
+                    </div>
+                </div>
+
+                <div id="errorMessage" class="hidden mt-4 p-3 rounded-lg bg-red-900 text-red-300 text-sm"></div>
+            </div>
+
+            <!-- Right Panel: Graphs -->
+            <div class="lg:col-span-2 space-y-8">
+                
+                <!-- Status/Loading Indicator -->
+                <div id="statusBox" class="card p-4 rounded-xl text-center text-lg font-medium hidden">
+                    <span id="statusText">Awaiting file upload...</span>
+                </div>
+
+                <!-- Graph 1: Normalized Light Curve -->
+                <div class="card p-6 rounded-xl">
+                    <h2 class="text-xl font-semibold mb-4 text-gray-200">Normalized Light Curve (Flux vs. Time)</h2>
+                    <canvas id="chartNormalized"></canvas>
+                </div>
+
+                <!-- Graph 2: BLS Periodogram -->
+                <div class="card p-6 rounded-xl">
+                    <h2 class="text-xl font-semibold mb-4 text-gray-200">BLS Periodogram (Power vs. Period)</h2>
+                    <canvas id="chartBls"></canvas>
+                </div>
+
+                <!-- Graph 3: Phase-Folded Light Curve -->
+                <div class="card p-6 rounded-xl">
+                    <h2 class="text-xl font-semibold mb-4 text-gray-200">Phase-Folded Light Curve (Showing Transit)</h2>
+                    <canvas id="chartFolded"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Data for simulation, based on Kepler-14b analysis
+        const SIMULATED_ANALYSIS_RESULTS = {
+            KIC_ID: 1429092,
+            // Simulating a clean detection for the demo
+            BEST_PERIOD: 6.7903, 
+            T0: 2454964.7301,
+            DURATION_HOURS: 4.85,
+            
+            // Simulated data points for the charts (representing the shape of Kepler-14b)
+            
+            // Normalized Curve (Time vs Flux - thousands of points compressed)
+            normalizedData: {
+                labels: Array.from({length: 50}, (_, i) => i * 10), // Mock time labels
+                flux: Array.from({length: 50}, (_, i) => 1 + 0.001 * Math.sin(i / 5) + 0.0005 * Math.random()) // Mock flux
+            },
+
+            // BLS Periodogram (Power vs Period)
+            blsData: {
+                labels: Array.from({length: 30}, (_, i) => 0.5 + i * 0.5), // Periods 0.5 to 15 days
+                power: Array.from({length: 30}, (_, i) => {
+                    const period = 0.5 + i * 0.5;
+                    // Strong peaks around 6.79 (true) and 8.43 (false)
+                    if (Math.abs(period - 6.79) < 0.2) return 2500;
+                    if (Math.abs(period - 8.43) < 0.2) return 2200;
+                    return 500 + Math.random() * 500;
+                })
+            },
+
+            // Folded Curve (Phase vs Flux - showing the transit dip)
+            foldedData: {
+                labels: Array.from({length: 100}, (_, i) => i * 0.01), // Phase 0.0 to 1.0
+                flux: Array.from({length: 100}, (_, i) => {
+                    const phase = i * 0.01;
+                    // Transit dip around phase 0.5
+                    if (phase > 0.45 && phase < 0.55) {
+                        const dip = 0.003 * Math.cos((phase - 0.5) * 10 * Math.PI);
+                        return 1 - dip + 0.0001 * Math.random();
+                    }
+                    return 1 + 0.0001 * Math.random();
+                })
+            }
+        };
+
+        const ctxNormalized = document.getElementById('chartNormalized').getContext('2d');
+        const ctxBls = document.getElementById('chartBls').getContext('2d');
+        const ctxFolded = document.getElementById('chartFolded').getContext('2d');
+        const statusBox = document.getElementById('statusBox');
+        const statusText = document.getElementById('statusText');
+        const analyzeButton = document.getElementById('analyzeButton');
+        const fitsFile = document.getElementById('fitsFile');
+        const outputParameters = document.getElementById('outputParameters');
+        const errorMessage = document.getElementById('errorMessage');
+
+        let normalizedChart, blsChart, foldedChart;
+        
+        // --- Initialization ---
+
+        function initializeCharts() {
+            // Placeholder/Initial Data Setup
+            const initialData = { labels: ["0", "1", "2"], datasets: [{ data: [0, 0, 0] }] };
+            const options = { 
+                responsive: true, 
+                maintainAspectRatio: true,
+                scales: { 
+                    x: { ticks: { color: '#888' }, grid: { color: '#30363d' } },
+                    y: { ticks: { color: '#888' }, grid: { color: '#30363d' } }
+                },
+                plugins: { legend: { display: false } } 
+            };
+
+            // Initialize chart instances directly
+            normalizedChart = new Chart(ctxNormalized, { type: 'line', data: initialData, options: options });
+            blsChart = new Chart(ctxBls, { type: 'line', data: initialData, options: options });
+            foldedChart = new Chart(ctxFolded, { type: 'scatter', data: initialData, options: options });
+
+            statusText.textContent = "Please upload a FITS file to begin analysis.";
+            statusBox.classList.remove('hidden');
+        }
+
+        // --- Event Listeners ---
+
+        fitsFile.addEventListener('change', () => {
+            if (fitsFile.files.length > 0) {
+                analyzeButton.disabled = false;
+                statusText.textContent = `File selected: ${fitsFile.files[0].name}. Ready to analyze.`;
+                errorMessage.classList.add('hidden');
+            } else {
+                analyzeButton.disabled = true;
+                statusText.textContent = "Awaiting file upload...";
+            }
+        });
+
+        // --- Analysis Simulation ---
+
+        function startAnalysis() {
+            if (!fitsFile.files.length) {
+                displayError("No file selected. Please choose a Kepler FITS file.");
+                return;
+            }
+
+            // 1. UI Feedback: Start Loading
+            analyzeButton.disabled = true;
+            analyzeButton.textContent = "Analyzing... Please wait.";
+            statusBox.classList.add('bg-blue-900/50');
+            statusText.textContent = "Phase 1: Running BLS Algorithm and Feature Extraction...";
+            outputParameters.classList.add('hidden');
+            errorMessage.classList.add('hidden');
+
+            // 2. Simulate the Python Analysis (Delay for realism)
+            setTimeout(() => {
+                
+                // For a real application, this would be an API call to a Python backend service
+                // that runs the lightkurve code and returns the JSON results.
+                const results = SIMULATED_ANALYSIS_RESULTS;
+                
+                // 3. Update UI with Extracted Parameters
+                document.getElementById('paramKicId').textContent = results.KIC_ID;
+                document.getElementById('paramPeriod').textContent = results.BEST_PERIOD.toFixed(4);
+                document.getElementById('paramT0').textContent = results.T0.toFixed(4);
+                document.getElementById('paramDuration').textContent = results.DURATION_HOURS.toFixed(2);
+                outputParameters.classList.remove('hidden');
+                
+                // 4. Draw Charts
+                drawNormalizedChart(results.normalizedData);
+                drawBlsChart(results.blsData, results.BEST_PERIOD);
+                drawFoldedChart(results.foldedData);
+
+                // 5. Final UI Feedback
+                analyzeButton.disabled = false;
+                analyzeButton.textContent = "Run Exoplanet BLS Analysis";
+                statusBox.classList.remove('bg-blue-900/50');
+                statusBox.classList.add('bg-green-900/50');
+                statusText.textContent = `Analysis Complete! Transit parameters for KIC ${results.KIC_ID} extracted.`;
+
+            }, 3000); // 3 second delay to simulate computation time
+        }
+        
+        function displayError(message) {
+            errorMessage.textContent = `ERROR: ${message}`;
+            errorMessage.classList.remove('hidden');
+            analyzeButton.disabled = false;
+            analyzeButton.textContent = "Run Exoplanet BLS Analysis";
+            statusBox.classList.remove('bg-blue-900/50');
+            statusText.textContent = "Analysis failed. Check input file.";
+        }
+
+        // --- Chart Drawing Functions ---
+
+        function drawNormalizedChart(data) {
+            // Explicitly destroy the old chart instance if it exists
+            if (normalizedChart) {
+                normalizedChart.destroy();
+            }
+
+            const datasets = [{
+                label: 'Normalized Flux',
+                data: data.flux,
+                borderColor: '#60a5fa', // blue-400
+                borderWidth: 1,
+                pointRadius: 0,
+                fill: false,
+                tension: 0.1
+            }];
+            
+            normalizedChart = new Chart(ctxNormalized, {
+                type: 'line', 
+                data: { labels: data.labels, datasets: datasets }, 
+                options: {
+                    responsive: true, 
+                    maintainAspectRatio: true,
+                    scales: {
+                        x: { title: { display: true, text: 'Time (Kepler BJD)', color: '#9ca3af' }, ticks: { color: '#888' }, grid: { color: '#30363d' } },
+                        y: { title: { display: true, text: 'Normalized Flux (ppm)', color: '#9ca3af' }, ticks: { color: '#888' }, grid: { color: '#30363d' } }
+                    },
+                    plugins: { legend: { display: false } }
+                }
+            });
+        }
+
+        function drawBlsChart(data, bestPeriod) {
+            // Explicitly destroy the old chart instance if it exists
+            if (blsChart) {
+                blsChart.destroy();
+            }
+
+            const datasets = [{
+                label: 'BLS Power',
+                data: data.power,
+                borderColor: '#f59e0b', // amber-500
+                backgroundColor: 'rgba(245, 158, 11, 0.2)',
+                borderWidth: 1,
+                pointRadius: 2,
+                fill: true,
+                tension: 0.2
+            }];
+            
+            blsChart = new Chart(ctxBls, {
+                type: 'line',
+                data: { labels: data.labels, datasets: datasets },
+                options: {
+                    responsive: true, 
+                    maintainAspectRatio: true,
+                    scales: {
+                        x: { title: { display: true, text: 'Period (days)', color: '#9ca3af' }, ticks: { color: '#888' }, grid: { color: '#30363d' } },
+                        y: { title: { display: true, text: 'Power', color: '#9ca3af' }, ticks: { color: '#888' }, grid: { color: '#30363d' } }
+                    },
+                    plugins: {
+                        legend: { display: false },
+                        annotation: {
+                            annotations: {
+                                line1: {
+                                    type: 'line',
+                                    xMin: bestPeriod,
+                                    xMax: bestPeriod,
+                                    borderColor: 'rgb(220, 38, 38)', // Red
+                                    borderWidth: 2,
+                                    borderDash: [6, 6],
+                                    label: {
+                                        content: `Period: ${bestPeriod.toFixed(4)} days`,
+                                        display: true,
+                                        position: 'start'
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function drawFoldedChart(data) {
+            // Explicitly destroy the old chart instance if it exists
+            if (foldedChart) {
+                foldedChart.destroy();
+            }
+
+            // Map the data for a scatter plot
+            const scatterData = data.labels.map((phase, index) => ({
+                x: parseFloat(phase) - 0.5, // Center phase at 0.0
+                y: data.flux[index]
+            }));
+
+            const datasets = [{
+                label: 'Flux Data Points',
+                data: scatterData,
+                backgroundColor: 'rgba(34, 197, 94, 0.4)', // green-500
+                borderColor: 'rgba(34, 197, 94, 0.8)',
+                pointRadius: 3,
+            }];
+            
+            foldedChart = new Chart(ctxFolded, {
+                type: 'scatter',
+                data: { datasets: datasets },
+                options: {
+                    responsive: true, 
+                    maintainAspectRatio: true,
+                    scales: {
+                        x: { title: { display: true, text: 'Phase (Centered at Transit)', color: '#9ca3af' }, min: -0.5, max: 0.5, ticks: { color: '#888' }, grid: { color: '#30363d' } },
+                        y: { title: { display: true, text: 'Normalized Flux (ppm)', color: '#9ca3af' }, ticks: { color: '#888' }, grid: { color: '#30363d' } }
+                    },
+                    plugins: { legend: { display: false } }
+                }
+            });
+        }
+
+        // Removed the complex, delayed loading logic for Chart.js Annotation Plugin
+        document.addEventListener('DOMContentLoaded', initializeCharts);
+
+    </script>
+</body>
+</html>
