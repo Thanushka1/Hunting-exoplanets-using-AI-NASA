@@ -2,7 +2,7 @@ This project addresses the challenge of handling massive amounts of light curve 
 by converting raw, noisy astronomical data into highly condensed, machine-readable features using the Box-Least Squares (BLS) algorithm.
 The core output is a set of quantifiable parameters (Period, Duration, Transit Time) that an AI/ML classifier can use to quickly identify high-confidence exoplanet candidates, making large-scale data analysis feasible.
 
-"https://drive.google.com/file/d/1TRT0pdB1JYZf2q8TF36dLr2XE4XelE4k/view?usp=sharing" u can this link for live demo.
+"https://drive.google.com/file/d/1TRT0pdB1JYZf2q8TF36dLr2XE4XelE4k/view?usp=sharing".Click here to run the Exoplanet Analysis Demo.
 
  How to Run the Demo Locally :
 Open index.html: Simply open the index.html file in any web browser.
